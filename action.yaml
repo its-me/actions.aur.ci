@@ -13,37 +13,8 @@ inputs:
     default: ${{ github.token }}
 
 runs:
-  using: composite
-  steps:
-    - name: Lint PKGBUILD
-      shell: bash
-      run: namcap PKGBUILD
-
-    - name: Check .SRCINFO is up to date
-      shell: bash
-      run: |
-        chown builder .
-        su builder -c "makepkg --printsrcinfo" > /tmp/.SRCINFO.generated
-        if ! diff -u .SRCINFO /tmp/.SRCINFO.generated; then
-          echo "::error::.SRCINFO is out of date — regenerate it with: makepkg --printsrcinfo > .SRCINFO"
-          exit 1
-        fi
-
-    - name: Build package
-      shell: bash
-      run: |
-        paru -Syu --noconfirm
-        chown -R builder .
-        su builder -c "paru -B . --noconfirm --skipreview --noprogressbar --removemake --mflags '--nocheck'"
-
-    - name: Create release
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-      shell: bash
-      env:
-        GITHUB_TOKEN: ${{ inputs.github-token }}
-      run: |
-        git config --global --add safe.directory "${GITHUB_WORKSPACE}"
-        _ver=$(grep '^pkgver=' PKGBUILD | cut -d= -f2)
-        _rel=$(grep '^pkgrel=' PKGBUILD | cut -d= -f2)
-        gh release delete "${_ver}-${_rel}" --yes --cleanup-tag 2>/dev/null || true
-        gh release create "${_ver}-${_rel}" --title "${_ver}-${_rel}" *.pkg.tar.zst
+  using: docker
+  image: ghcr.io/its-me/arch-linux:builder
+  entrypoint: entrypoint.sh
+  env:
+    GITHUB_TOKEN: ${{ inputs.github-token }}
